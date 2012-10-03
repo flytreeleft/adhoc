@@ -46,30 +46,30 @@ function sleep_and_print
 # start Ad-hoc
 function adhoc_start
 {
-	echo "Starting Ad-hoc..."
-	check_dnsmasq
-	sleep 1
+  echo "Starting Ad-hoc..."
+  check_dnsmasq
+  sleep 1
 
-	echo -n "Setting $WInterface gateway[$Igateway] and netmask[$Inetmask]..."
-	ifconfig $WInterface $Igateway netmask $Inetmask 2> /dev/null
+  echo -n "Setting $WInterface gateway[$Igateway] and netmask[$Inetmask]..."
+  ifconfig $WInterface $Igateway netmask $Inetmask 2> /dev/null
   sleep_and_print $?
 
-	echo -n "Setting down $WInterface..."
-	ifconfig $WInterface down 2> /dev/null
+  echo -n "Setting down $WInterface..."
+  ifconfig $WInterface down 2> /dev/null
   sleep_and_print $?
-	# only is wlan0 shut down, you can set mode
-	echo -n "Setting $WInterface mode[$Wmode]..."
-	iwconfig $WInterface mode $Wmode 2> /dev/null
+  # only is wlan0 shut down, you can set mode
+  echo -n "Setting $WInterface mode[$Wmode]..."
+  iwconfig $WInterface mode $Wmode 2> /dev/null
   sleep_and_print $?
-	
-	echo -n "Setting $WInterface essid[$Wessid]..."
-	iwconfig $WInterface essid $Wessid 2> /dev/null
+  
+  echo -n "Setting $WInterface essid[$Wessid]..."
+  iwconfig $WInterface essid $Wessid 2> /dev/null
   sleep_and_print $?
-	
-	echo -n "Setting $WInterface cannel[$Wchannel]..."
-	iwconfig $WInterface channel $Wchannel 2> /dev/null
+  
+  echo -n "Setting $WInterface cannel[$Wchannel]..."
+  iwconfig $WInterface channel $Wchannel 2> /dev/null
   sleep_and_print $?
-	
+  
   if [ -n "$WPasskey" ]; then
     Wkey=restricted
     echo -n "Setting $WInterface password[$WPasskey]..."
@@ -78,7 +78,7 @@ function adhoc_start
   else
     Wkey=off
   fi
-	
+  
   echo -n "Setting $WInterface key type[$Wkey]..."
   iwconfig $WInterface key $Wkey 2> /dev/null
   sleep 1
@@ -87,101 +87,101 @@ function adhoc_start
   else
     echo "    [ GOOD ]"
   fi
-	
-	echo -n "Setting up $WInterface..."
-	ifconfig $WInterface up 2> /dev/null
+  
+  echo -n "Setting up $WInterface..."
+  ifconfig $WInterface up 2> /dev/null
   sleep_and_print $?
 
-	echo -n "Setting iptable..."
-	#remove the old rules
-	iptables -N wireless-adhoc
+  echo -n "Setting iptable..."
+  #remove the old rules
+  iptables -N wireless-adhoc
   iptables -F wireless-adhoc
   iptables -t nat -F PREROUTING
   iptables -t nat -F POSTROUTING
   iptables -t nat -F
-	#bring up the NAT rules
-	iptables -A wireless-adhoc -m state --state ESTABLISHED,RELATED -j ACCEPT
-	iptables -A wireless-adhoc -s $Inetwork/24 -j ACCEPT
-	iptables -A wireless-adhoc -p 47 -j ACCEPT
-	iptables -A wireless-adhoc -j DROP
-	iptables -A FORWARD -m state --state INVALID -j DROP
-	iptables -A FORWARD -j wireless-adhoc
-	iptables -t nat -I POSTROUTING -s $Inetwork/24 -j MASQUERADE
+  #bring up the NAT rules
+  iptables -A wireless-adhoc -m state --state ESTABLISHED,RELATED -j ACCEPT
+  iptables -A wireless-adhoc -s $Inetwork/24 -j ACCEPT
+  iptables -A wireless-adhoc -p 47 -j ACCEPT
+  iptables -A wireless-adhoc -j DROP
+  iptables -A FORWARD -m state --state INVALID -j DROP
+  iptables -A FORWARD -j wireless-adhoc
+  iptables -t nat -I POSTROUTING -s $Inetwork/24 -j MASQUERADE
   sleep 1
-	echo "    [ GOOD ]"
+  echo "    [ GOOD ]"
 
-	sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+  sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
 
-	dnsmasq -i $WInterface --resolv-file=$resolvFile --conf-file=$dnsmasqFile
-	echo "Completed!^^"
+  dnsmasq -i $WInterface --resolv-file=$resolvFile --conf-file=$dnsmasqFile
+  echo "Completed!^^"
 }
 
 # stop Ad-hoc
 function adhoc_stop
 {
-	echo "Stopping adhoc ..."
-	sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward"
-	echo -n "."
+  echo "Stopping adhoc ..."
+  sh -c "echo 0 > /proc/sys/net/ipv4/ip_forward"
+  echo -n "."
   # only is wlan0 shut down, you can set mode
-	ifconfig $WInterface down
-	sleep 1
-	echo -n "."
+  ifconfig $WInterface down
+  sleep 1
+  echo -n "."
 
-	# stop adhoc mode
-	iwconfig $WInterface mode managed
-	sleep 1
-	echo -n "."
+  # stop adhoc mode
+  iwconfig $WInterface mode managed
+  sleep 1
+  echo -n "."
 
-	iwconfig $WInterface key off
-	sleep 1
-	echo -n "."
+  iwconfig $WInterface key off
+  sleep 1
+  echo -n "."
 
-	iwconfig $WInterface essid any
-	sleep 1
-	echo -n "."
+  iwconfig $WInterface essid any
+  sleep 1
+  echo -n "."
 
-	# remove iptabled rules
-	iptables -D FORWARD -j wireless-adhoc
-	iptables -D FORWARD -m state --state INVALID -j DROP
-	iptables -F wireless-adhoc
-	iptables -X wireless-adhoc
-	iptables -t nat -F PREROUTING
-	iptables -t nat -F POSTROUTING
-	iptables -t nat -F
-	sleep 1
-	echo -n "."
+  # remove iptabled rules
+  iptables -D FORWARD -j wireless-adhoc
+  iptables -D FORWARD -m state --state INVALID -j DROP
+  iptables -F wireless-adhoc
+  iptables -X wireless-adhoc
+  iptables -t nat -F PREROUTING
+  iptables -t nat -F POSTROUTING
+  iptables -t nat -F
+  sleep 1
+  echo -n "."
 
-	if [ -f $dnsmasqPid ]; then
-		dnsmasqID=`cat $dnsmasqPid`
-		kill $dnsmasqID
-	fi
-	if [ -f $dnsmasqLeases ]; then 
-		rm $dnsmasqLeases
-	fi
-	echo -e "\nWifi ad-hoc now stopped"
+  if [ -f $dnsmasqPid ]; then
+    dnsmasqID=`cat $dnsmasqPid`
+    kill $dnsmasqID
+  fi
+  if [ -f $dnsmasqLeases ]; then 
+    rm $dnsmasqLeases
+  fi
+  echo -e "\nWifi ad-hoc now stopped"
 }
 
 function adhoc_restart
 {
-	echo "Now, resart ad-hoc ..."
-	adhoc_stop
-	sleep 2
-	adhoc_start
+  echo "Now, resart ad-hoc ..."
+  adhoc_stop
+  sleep 2
+  adhoc_start
 }
 # check dnsmasq.conf
 function check_dnsmasq
 {
 
-	if [ -f $dnsmasqPid ]; then
-		echo "Dhcp is running!"
-		echo "Now, restart Ad-hoc"
-		adhoc_stop
-	fi
-	if [ ! -d $adhocFolder ]; then
+  if [ -f $dnsmasqPid ]; then
+    echo "Dhcp is running!"
+    echo "Now, restart Ad-hoc"
+    adhoc_stop
+  fi
+  if [ ! -d $adhocFolder ]; then
     mkdir $adhocFolder
-	fi
+  fi
 
-	if [ ! -f $dnsmasqFile ]; then
+  if [ ! -f $dnsmasqFile ]; then
     echo "$dnsmasqFile is not exist, now building."
 
     echo "dhcp-authoritative" > $dnsmasqFile
@@ -190,22 +190,22 @@ function check_dnsmasq
     echo "pid-file=$dnsmasqPid" >> $dnsmasqFile
     echo "user=root" >> $dnsmasqFile
     echo "no-negcache" >> $dnsmasqFile
-	fi
+  fi
 }
 
 # is super user?
 function super_user
 {
-	if [ "$UID" = "0" ]; then
+  if [ "$UID" = "0" ]; then
     return 0
-	else
+  else
     return 1
-	fi
+  fi
 }
 
 function usage
 {
-	echo "             Wifi Ad-hoc Control"
+  echo "             Wifi Ad-hoc Control"
   echo
   echo "Usage:"
   echo "    $0 interface [essid X] [key K] [start|stop|restart]"
