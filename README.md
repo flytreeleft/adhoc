@@ -6,6 +6,9 @@ first you use adhoc, you must install dnsmasq following:
 and kill dnsmasq server process after install it:  
   $ pkill -f dnsmasq  
 
+en, don't forget make it executable:
+  $ chmod +x adhoc
+
 then, run command to start following:  
   $ sudo ./adhoc wlan0 essid YourNetworkName key YourNetworkAccessPassword start  
 stop or restart your network, you can run command:  
