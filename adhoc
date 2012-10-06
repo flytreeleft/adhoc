@@ -19,7 +19,7 @@ Wessid=WiFi-Network
 WInterface=$1
 # only the word which has 13 characters is a valid password
 WPasskey=
-Wkey=off
+Wkey="off"
 Igateway=192.168.2.254
 Inetmask=255.255.255.0
 Inetwork=192.168.2.0
@@ -66,12 +66,12 @@ function adhoc_start
   iwconfig $WInterface essid $Wessid 2> /dev/null
   sleep_and_print $?
   
-  echo -n "Setting $WInterface cannel[$Wchannel]..."
+  echo -n "Setting $WInterface channel[$Wchannel]..."
   iwconfig $WInterface channel $Wchannel 2> /dev/null
   sleep_and_print $?
   
   if [ -n "$WPasskey" ]; then
-    Wkey=restricted
+    Wkey="restricted"
     echo -n "Setting $WInterface password[$WPasskey]..."
     iwconfig $WInterface key s:$WPasskey 2> /dev/null
     sleep_and_print $?
@@ -83,7 +83,7 @@ function adhoc_start
   iwconfig $WInterface key $Wkey 2> /dev/null
   sleep 1
   if [ "$Wkey" = "off" ]; then
-    echo "    [ WARNING, non-encrypted network ]"
+    echo -e "    [ \033[31mWARNING\033[0m, non-encrypted network ]"
   else
     echo "    [ GOOD ]"
   fi
@@ -229,7 +229,6 @@ if ! super_user ; then
   exit 1
 fi
 
-Action=start
 shift
 while [[ -n $1 ]]; do
   case $1 in
@@ -243,9 +242,11 @@ while [[ -n $1 ]]; do
               exit 1
             fi
             ;;
-    stop)   Action=stop
+    stop)   Action="stop"
             ;;
-    restart) Action=restart
+    restart) Action="restart"
+            ;;
+    start) Action="start"
             ;;
     *)      usage
             exit 1
