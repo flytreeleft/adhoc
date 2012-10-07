@@ -17,9 +17,11 @@ Wmode=ad-hoc
 Wchannel=auto
 Wessid=WiFi-Network
 WInterface=$1
-# only the word which has 13 characters is a valid password
+# the length of encrypted key is determined by device,
+# running `sudo iwlist interface keys` to check
+# the supported length
 WPasskey=
-Wkey="off"
+Wkey=off
 Igateway=192.168.2.254
 Inetmask=255.255.255.0
 Inetwork=192.168.2.0
@@ -33,13 +35,19 @@ resolvFile=/etc/resolv.conf
 dnsmasqPid=/var/run/dnsmasq.pid
 dnsmasqLeases=/var/run/dnsmasq.leases
 
-function sleep_and_print
+# run command and print error message
+function run_command
 {
-  sleep 1
-  if [ $1 -ne 0 ]; then
+  local command="$1"
+  local msg
+  msg=$(${command} 2>&1)
+  sleep 0.5
+  if [ $? -ne 0 ]; then
     echo -e "    [ \033[31mFAILED\033[0m ]"
+    echo    "    ${msg}"
+    exit 1
   else
-    echo "    [ GOOD ]"
+    echo -e "    [ GOOD ]"
   fi
 }
 
@@ -48,58 +56,51 @@ function adhoc_start
 {
   echo "Starting Ad-hoc..."
   check_dnsmasq
-  sleep 1
+  sleep 0.5
 
   echo -n "Setting $WInterface gateway[$Igateway] and netmask[$Inetmask]..."
-  ifconfig $WInterface $Igateway netmask $Inetmask 2> /dev/null
-  sleep_and_print $?
+  run_command "ifconfig $WInterface $Igateway netmask $Inetmask"
 
   echo -n "Setting down $WInterface..."
-  ifconfig $WInterface down 2> /dev/null
-  sleep_and_print $?
+  run_command "ifconfig $WInterface down"
   # only is wlan0 shut down, you can set mode
   echo -n "Setting $WInterface mode[$Wmode]..."
-  iwconfig $WInterface mode $Wmode 2> /dev/null
-  sleep_and_print $?
+  run_command "iwconfig $WInterface mode $Wmode"
   
   echo -n "Setting $WInterface essid[$Wessid]..."
-  iwconfig $WInterface essid $Wessid 2> /dev/null
-  sleep_and_print $?
+  run_command "iwconfig $WInterface essid $Wessid"
   
   echo -n "Setting $WInterface channel[$Wchannel]..."
-  iwconfig $WInterface channel $Wchannel 2> /dev/null
-  sleep_and_print $?
+  run_command "iwconfig $WInterface channel $Wchannel"
   
   if [ -n "$WPasskey" ]; then
     Wkey="restricted"
     echo -n "Setting $WInterface password[$WPasskey]..."
-    iwconfig $WInterface key s:$WPasskey 2> /dev/null
-    sleep_and_print $?
+    run_command "iwconfig $WInterface key s:$WPasskey"
   else
-    Wkey=off
+    Wkey="off"
   fi
   
   echo -n "Setting $WInterface key type[$Wkey]..."
-  iwconfig $WInterface key $Wkey 2> /dev/null
-  sleep 1
+  run_command "iwconfig $WInterface key $Wkey"
   if [ "$Wkey" = "off" ]; then
     echo -e "    [ \033[31mWARNING\033[0m, non-encrypted network ]"
-  else
-    echo "    [ GOOD ]"
   fi
   
   echo -n "Setting up $WInterface..."
-  ifconfig $WInterface up 2> /dev/null
-  sleep_and_print $?
+  run_command "ifconfig $WInterface up"
 
-  echo -n "Setting iptable..."
+  echo "Setting iptable:"
   #remove the old rules
+  echo -n "    remove old rules..."
   iptables -N wireless-adhoc
   iptables -F wireless-adhoc
   iptables -t nat -F PREROUTING
   iptables -t nat -F POSTROUTING
   iptables -t nat -F
+  echo "    [ GOOD ]"
   #bring up the NAT rules
+  echo -n "    bring up NAT rules..."
   iptables -A wireless-adhoc -m state --state ESTABLISHED,RELATED -j ACCEPT
   iptables -A wireless-adhoc -s $Inetwork/24 -j ACCEPT
   iptables -A wireless-adhoc -p 47 -j ACCEPT
@@ -107,13 +108,21 @@ function adhoc_start
   iptables -A FORWARD -m state --state INVALID -j DROP
   iptables -A FORWARD -j wireless-adhoc
   iptables -t nat -I POSTROUTING -s $Inetwork/24 -j MASQUERADE
-  sleep 1
   echo "    [ GOOD ]"
 
   sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
 
-  dnsmasq -i $WInterface --resolv-file=$resolvFile --conf-file=$dnsmasqFile
+  echo -n "Starting DNS and DHCP server..."
+  run_command "dnsmasq -i $WInterface \
+                        --resolv-file=$resolvFile \
+                        --conf-file=$dnsmasqFile"
   echo "Completed!^^"
+}
+
+function wait_a_moment
+{
+  sleep 0.5
+  echo -n "."
 }
 
 # stop Ad-hoc
@@ -124,21 +133,17 @@ function adhoc_stop
   echo -n "."
   # only is wlan0 shut down, you can set mode
   ifconfig $WInterface down
-  sleep 1
-  echo -n "."
+  wait_a_moment
 
   # stop adhoc mode
   iwconfig $WInterface mode managed
-  sleep 1
-  echo -n "."
+  wait_a_moment
 
   iwconfig $WInterface key off
-  sleep 1
-  echo -n "."
+  wait_a_moment
 
   iwconfig $WInterface essid any
-  sleep 1
-  echo -n "."
+  wait_a_moment
 
   # remove iptabled rules
   iptables -D FORWARD -j wireless-adhoc
@@ -148,8 +153,7 @@ function adhoc_stop
   iptables -t nat -F PREROUTING
   iptables -t nat -F POSTROUTING
   iptables -t nat -F
-  sleep 1
-  echo -n "."
+  wait_a_moment
 
   if [ -f $dnsmasqPid ]; then
     dnsmasqID=`cat $dnsmasqPid`
@@ -163,9 +167,9 @@ function adhoc_stop
 
 function adhoc_restart
 {
-  echo "Now, resart ad-hoc ..."
+  echo "Now, resart Ad-hoc ..."
   adhoc_stop
-  sleep 2
+  sleep 1
   adhoc_start
 }
 # check dnsmasq.conf
@@ -173,7 +177,7 @@ function check_dnsmasq
 {
 
   if [ -f $dnsmasqPid ]; then
-    echo "Dhcp is running!"
+    echo "DHCP server is running!"
     echo "Now, restart Ad-hoc"
     adhoc_stop
   fi
@@ -203,6 +207,30 @@ function super_user
   fi
 }
 
+# check whether encrypted key has supported length or not
+function check_key_size
+{
+  local key=$1
+  if [[ -n $key ]]; then
+    local key_bit_sizes=$(iwlist ${WInterface} keys \
+                        | grep "sizes" \
+                        | sed "s/.*: *\(.*\)bits/\1/; s/,/ /")
+    local key_byte_sizes
+    local wrong_key=1
+    local size
+    for size in ${key_bit_sizes}; do
+      key_byte_sizes="${key_byte_sizes},$((size/8))"
+      if ((${#key} == ${size}/8)); then
+        wrong_key=0
+      fi
+    done
+    if ((${wrong_key})); then
+      echo "Encrypted key must have ${key_byte_sizes#,} characters."
+      exit 1
+    fi
+  fi
+}
+
 function usage
 {
   echo "             Wifi Ad-hoc Control"
@@ -213,7 +241,7 @@ function usage
   echo "Description:"
   echo "    essid    The name of your network, default \"$Wessid\"."
   echo "    key      The encryption key of your network,"
-  echo "             you can use any ASCII string(only 13 characters),"
+  echo "             you can use any ASCII string,"
   echo "             if not set, your network will be non-encrypted."
   echo "    start    Start creating Wifi Ad-hoc Network."
   echo "    stop     Stop Wifi Ad-hoc Network."
@@ -237,10 +265,7 @@ while [[ -n $1 ]]; do
             ;;
     key)    shift
             WPasskey=$1
-            if [[ -n $WPasskey && ${#WPasskey} -ne 13 ]]; then
-              echo "Encrypted key must has 13 characters."
-              exit 1
-            fi
+            check_key_size "${WPasskey}"
             ;;
     stop)   Action="stop"
             ;;
@@ -255,10 +280,9 @@ while [[ -n $1 ]]; do
   shift
 done
 case $Action in
-  start)    adhoc_start
-            ;;
   stop)     adhoc_stop
             ;;
   restart)  adhoc_restart
             ;;
+  *)    adhoc_start
 esac
