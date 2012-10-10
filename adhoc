@@ -231,12 +231,39 @@ function check_key_size
   fi
 }
 
+# check whether the specified wifi interface is valid or not
+function check_wifi_interface
+{
+  local wifi="$1"
+  local interfaces=$(iwconfig 2> /dev/null \
+                          | grep "ESSID" \
+                          | sed "s/^\([^ ]\{1,\}\).*/\1/")
+  if [ -z "${interfaces}" ]; then
+    echo "It seems that you haven't any WiFi device!"
+    exit 1
+  fi
+  local inf
+  for inf in ${interfaces}; do
+    if [ "${wifi}" = "${inf}" ]; then
+      return 0
+    fi
+  done
+  echo "Maybe \"${wifi}\" is not a WiFi device which you have."
+  echo "Detected WiFi devices following:"
+  for inf in ${interfaces}; do
+    echo -n "    ${inf}"
+  done
+  echo
+  exit 1
+}
+
 function usage
 {
+  local program=$(echo $0 | sed "s/.*\/\([^\/]*\)$/\1/")
   echo "             Wifi Ad-hoc Control"
   echo
   echo "Usage:"
-  echo "    $0 interface [essid X] [key K] [start|stop|restart]"
+  echo "    ${program} interface [essid X] [key K] (start|stop|restart)"
   echo
   echo "Description:"
   echo "    essid    The name of your network, default \"$Wessid\"."
@@ -256,6 +283,8 @@ if ! super_user ; then
   echo "Need super user permission!"
   exit 1
 fi
+
+check_wifi_interface "$WInterface"
 
 shift
 while [[ -n $1 ]]; do
@@ -284,5 +313,7 @@ case $Action in
             ;;
   restart)  adhoc_restart
             ;;
-  *)    adhoc_start
+  start)    adhoc_start
+            ;;
+  *)        usage
 esac
